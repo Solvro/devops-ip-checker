@@ -1,4 +1,4 @@
-use std::{net::IpAddr, ops::Deref};
+use std::net::IpAddr;
 
 use axum::{
     Router, extract::State, http::header, response::{Html, IntoResponse}, routing::get
@@ -43,22 +43,22 @@ async fn main_route(
             &maybe_ip.map_or_else(|| "nieznane".to_string(), |ExtractIp(ip)| ip.to_string())
         ),
         if let Some(class) =
-            maybe_ip.and_then(|ExtractIp(ip)| classify_ip(ip, config.ip_ranges.deref()))
+            maybe_ip.and_then(|ExtractIp(ip)| classify_ip(ip, &config.ip_ranges))
         {
             format!(
                 r#"<h4 id="ip-class">({})</h4>"#,
                 html_escape::encode_safe(class)
             )
         } else {
-            "".to_string()
+            String::new()
         },
         if let Some(server) = config.server_name {
             format!(
                 r#"<h4 id="server-name">serwer: {}</h4>"#,
-                html_escape::encode_safe(server.deref())
+                html_escape::encode_safe(&server)
             )
         } else {
-            "".to_string()
+            String::new()
         }
     ))
 }

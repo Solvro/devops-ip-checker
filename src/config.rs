@@ -47,6 +47,7 @@ impl Hash for DeserializableCidr {
     }
 }
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 pub struct FileConfig {
@@ -108,7 +109,9 @@ impl Default for ListenConfig {
     }
 }
 
-fn default_unix_mode() -> u32 { 0o666 }
+fn default_unix_mode() -> u32 {
+    0o666
+}
 
 impl Config {
     pub async fn get() -> Result<Config, ErrorContext> {
@@ -123,17 +126,23 @@ impl Config {
                 .context("Failed to resolve parsed IP_CHECKER_CONFIG config")
         } else if let Some(config_path) = env::var_os("IP_CHECKER_CONFIG_FILE") {
             let file_config: FileConfig =
-                serde_json::from_reader(
-                    File::open(&config_path)
-                        .with_context(||
-                            format!("Failed to open {config_path:?} (IP_CHECKER_CONFIG_FILE) for reading")
-                        )?
-                )
-                .with_context(||
-                    format!("Failed to parse the contents of {config_path:?} (IP_CHECKER_CONFIG_FILE) as FileConfig")
-                )?;
+                serde_json::from_reader(File::open(&config_path).with_context(|| {
+                    format!(
+                        "Failed to open {} (IP_CHECKER_CONFIG_FILE) for reading",
+                        config_path.display()
+                    )
+                })?)
+                .with_context(|| {
+                    format!(
+                        "Failed to parse the contents of {} (IP_CHECKER_CONFIG_FILE) as FileConfig",
+                        config_path.display()
+                    )
+                })?;
             file_config.resolve().await.with_context(|| {
-                format!("Failed to resolve parsed {config_path:?} (IP_CHECKER_CONFIG_FILE) config")
+                format!(
+                    "Failed to resolve parsed {} (IP_CHECKER_CONFIG_FILE) config",
+                    config_path.display()
+                )
             })
         } else {
             warn!(
@@ -183,7 +192,7 @@ impl<'de> Deserialize<'de> for DeserializableCidr {
         D: Deserializer<'de>,
     {
         struct CidrVisitor;
-        impl<'de> Visitor<'de> for CidrVisitor {
+        impl Visitor<'_> for CidrVisitor {
             type Value = IpCidr;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {

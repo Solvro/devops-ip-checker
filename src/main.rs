@@ -47,7 +47,7 @@ async fn main() -> Result<(), ErrorContext> {
                 Err(e) if e.kind() == ErrorKind::NotFound => (),
                 Err(e) => return Err(e.context(format!("Failed to stat {path}"))),
                 Ok(m) => {
-                    if m.mode() & 0o140000 == 0 {
+                    if m.mode() & 0o140_000 == 0 {
                         bail!("Non-socket file found at Unix socket listen location {path}",);
                     }
                     fs::remove_file(&*path)

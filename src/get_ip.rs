@@ -1,6 +1,7 @@
 use std::{
     convert::Infallible,
-    net::{IpAddr, SocketAddr}, ops::Deref, str::FromStr,
+    net::{IpAddr, SocketAddr},
+    str::FromStr,
 };
 
 use axum::{
@@ -23,7 +24,11 @@ impl OptionalFromRequestParts<AppConfig> for ExtractIp {
         // check if we have an IP address and it's not a trusted one
         if let Some(info) = parts.extensions.get::<ConnectInfo<SocketAddr>>() {
             let addr = info.0.ip().to_canonical();
-            if !state.trusted_proxies.iter().any(|cidr| cidr.contains(&addr)) {
+            if !state
+                .trusted_proxies
+                .iter()
+                .any(|cidr| cidr.contains(&addr))
+            {
                 // return it as the user's IP
                 return Ok(Some(Self(addr)));
             }
@@ -31,7 +36,7 @@ impl OptionalFromRequestParts<AppConfig> for ExtractIp {
         // we either have a proxy IP, or we don't have an IP (i.e. it's an unix socket connection)
         // extract from headers
         for key in state.forwarded_headers.iter() {
-            let Some(val) = parts.headers.get(key.deref()) else {
+            let Some(val) = parts.headers.get(&**key) else {
                 continue;
             };
             if let Some(addr) = val.to_str().ok().and_then(|val| IpAddr::from_str(val).ok()) {
@@ -49,7 +54,8 @@ impl FromRequestParts<AppConfig> for ExtractIp {
         parts: &mut Parts,
         state: &AppConfig,
     ) -> Result<Self, Self::Rejection> {
-        match <Self as OptionalFromRequestParts<AppConfig>>::from_request_parts(parts, state).await {
+        match <Self as OptionalFromRequestParts<AppConfig>>::from_request_parts(parts, state).await
+        {
             Ok(Some(v)) => Ok(v),
             Ok(None) => Err("Failed to find your IP address"),
         }
