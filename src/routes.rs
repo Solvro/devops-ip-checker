@@ -10,26 +10,32 @@ use axum::{
 use cidr::IpCidr;
 use indexmap::IndexMap;
 
-use crate::{config::AppConfig, get_ip::ExtractIp, metadata::{BUILD_TIME, GIT_HASH, GIT_REF}};
+use crate::{
+    config::AppConfig,
+    get_ip::ExtractIp,
+    metadata::{BUILD_TIME, GIT_HASH, GIT_REF},
+};
 
-static METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(||
+static METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(|| {
     if let Some(hash) = GIT_HASH {
         format!(
-            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{hash}">devops-ip-checker {}{} {BUILD_TIME}</a><h5>"#,
-            &hash[..8],
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{}">devops-ip-checker {}{} {}</a><h5>"#,
+            html_escape::encode_safe(hash),
+            html_escape::encode_safe(&hash[..8]),
             if let Some(gref) = GIT_REF {
-                format!(" ({gref})")
+                format!(" ({})", html_escape::encode_safe(gref))
             } else {
                 String::new()
             },
+            html_escape::encode_safe(BUILD_TIME),
         ).leak()
     } else {
         format!(
-            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker">devops-ip-checker {BUILD_TIME}</a><h5>"#,
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker">devops-ip-checker {}</a><h5>"#,
+            html_escape::encode_safe(BUILD_TIME),
         ).leak()
     }
-);
-
+});
 
 pub fn create_router(config: AppConfig) -> Router<()> {
     Router::new()
