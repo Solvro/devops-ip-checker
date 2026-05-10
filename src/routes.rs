@@ -15,18 +15,18 @@ use crate::{config::AppConfig, get_ip::ExtractIp, metadata::{BUILD_TIME, GIT_HAS
 static METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(||
     if let Some(hash) = GIT_HASH {
         format!(
-            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{}">devops-ip-checker {}{} {}</a><h5>"#,
-            hash,
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{hash}">devops-ip-checker {}{} {BUILD_TIME}</a><h5>"#,
             &hash[..8],
             if let Some(gref) = GIT_REF {
                 format!(" ({gref})")
             } else {
                 String::new()
             },
-            BUILD_TIME,
         ).leak()
     } else {
-        ""
+        format!(
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker">devops-ip-checker {BUILD_TIME}</a><h5>"#,
+        ).leak()
     }
 );
 

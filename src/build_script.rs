@@ -57,12 +57,30 @@ fn read_file<P: AsRef<Path>>(path: P) -> Result<String, ErrorContext> {
 }
 
 fn get_git_metadata() -> Result<GitMetadata, ErrorContext> {
-    let mut head_file = read_file(".git/HEAD")?;
+    get_direct_git_metadata().or_else(|e| get_git_meta_from_env().ok_or(e))
+}
+
+fn get_git_meta_from_env() -> Option<GitMetadata> {
+    let mut commit = env::var("SOURCE_COMMIT").ok()?;
+    commit.make_ascii_lowercase();
+
+    if !is_valid_git_hash(&commit) {
+        return None;
+    }
+
+    Some(GitMetadata {
+        r#ref: env::var("COOLIFY_BRANCH").ok(),
+        hash: commit,
+    })
+}
+
+fn get_direct_git_metadata() -> Result<GitMetadata, ErrorContext> {
+    let git_dir = Path::new(&env::var_os("GIT_DIR").unwrap_or(".git".into()))
+        .canonicalize()
+        .context("Failed to canonicalize the path to the git dir")?;
+    let mut head_file = read_file(git_dir.join("HEAD"))?;
 
     if let Some(r#ref) = head_file.trim().strip_prefix("ref: ") {
-        let git_dir = env::current_dir()
-            .context("Failed to get path to current dir")?
-            .join(".git");
         let ref_path = git_dir
             .join(r#ref)
             .canonicalize()
@@ -76,7 +94,7 @@ fn get_git_metadata() -> Result<GitMetadata, ErrorContext> {
         ref_file.make_ascii_lowercase();
         let ref_file = ref_file.trim();
 
-        if ref_file.len() != 40 || !ref_file.chars().all(|c| c.is_ascii_hexdigit()) {
+        if !is_valid_git_hash(ref_file) {
             bail!(
                 "{} (pointed to by .git/HEAD) did not contain a git commit hash",
                 ref_path.display()
@@ -91,7 +109,7 @@ fn get_git_metadata() -> Result<GitMetadata, ErrorContext> {
         head_file.make_ascii_lowercase();
         let head_file = head_file.trim();
 
-        if head_file.len() != 40 || !head_file.chars().all(|c| c.is_ascii_hexdigit()) {
+        if !is_valid_git_hash(head_file) {
             bail!(".git/HEAD did not contain a ref or git commit hash");
         }
 
@@ -100,6 +118,10 @@ fn get_git_metadata() -> Result<GitMetadata, ErrorContext> {
             hash: head_file.to_string(),
         })
     }
+}
+
+fn is_valid_git_hash(s: &str) -> bool {
+    s.len() == 40 && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn get_build_timestamp() -> String {

@@ -5,8 +5,8 @@ WORKDIR /source
 # compile
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=alpine_cargo_dir \
     --mount=type=cache,target=/source/target,id=ip_checker_target \
-    --mount=type=bind,source=.git,target=/source/.git \
-    cargo build --release --locked && \
+    --mount=type=bind,target=/context \
+    GIT_DIR=/context/.git cargo build --release --locked && \
     cp /source/target/release/ip-checker /
 
 # prod image
