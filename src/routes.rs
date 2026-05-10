@@ -42,11 +42,16 @@ async fn main_route(
     </head>
     <body>
         <h2 id="ip-header">Twoje IP:</h2>
-        <h3 id="ip">{}</h3>
+        <h3 id="ip"{}>{}</h3>
         {}
         {}
     </body>
 </html>"#,
+        if maybe_ip.is_some_and(|ExtractIp(ip)| ip.is_ipv6()) {
+            " data-v6"
+        } else {
+            ""
+        },
         html_escape::encode_safe(
             &maybe_ip.map_or_else(|| "nieznane".to_string(), |ExtractIp(ip)| ip.to_string())
         ),
