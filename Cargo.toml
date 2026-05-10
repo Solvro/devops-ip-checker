@@ -22,3 +22,6 @@ webpki-roots = "1.0.7"
 pedantic = { level = "warn", priority = -1 }
 todo = "warn"
 
+[profile.release]
+strip = true
+lto = "thin"
