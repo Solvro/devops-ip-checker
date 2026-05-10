@@ -1,12 +1,20 @@
 use std::{
-    fs::{self, Permissions}, io::ErrorKind, net::SocketAddr, os::unix::fs::{MetadataExt, PermissionsExt}
+    env,
+    fs::{self, Permissions},
+    io::ErrorKind,
+    net::SocketAddr,
+    os::unix::fs::{MetadataExt, PermissionsExt},
+    time::{Duration, Instant},
 };
 
 use async_signal::{Signal, Signals};
 use cloneable_errors::{ErrContext, ErrorContext, ResContext, anyhow, bail};
 use futures_lite::StreamExt;
+use reqwest::{ClientBuilder, StatusCode};
 use tokio::{
-    net::{TcpListener, UnixListener}, select, task::JoinSet
+    net::{TcpListener, UnixListener},
+    select,
+    task::JoinSet,
 };
 use tracing::{debug, info};
 
@@ -20,6 +28,59 @@ mod routes;
 async fn main() -> Result<(), ErrorContext> {
     tracing_subscriber::fmt::init();
 
+    if env::args().nth(1).is_some_and(|x| x == "health") {
+        health().await
+    } else {
+        server().await
+    }
+}
+
+async fn health() -> Result<(), ErrorContext> {
+    info!("Running in healthcheck mode");
+
+    let Some(target) = env::args().nth(2) else {
+        bail!("No target provided; usage: ./ip_checher health <target>");
+    };
+
+    let start = Instant::now();
+    if let Some(unix_path) = target.strip_prefix("unix:") {
+        info!("Checking {unix_path} over unix sockets");
+        let client = ClientBuilder::new()
+            .unix_socket(unix_path)
+            .timeout(Duration::from_secs(1))
+            .build()
+            .context("Failed to build new reqwest client")?;
+
+        let response = client.get("http://localhost/health").send().await.with_context(|| format!("/health request over unix socket at {unix_path} failed"))?;
+        let status = response.status();
+
+        if status != StatusCode::OK {
+            bail!("Expected /health to return code 200, got {status}",)
+        }
+
+        info!("Got 200 response in {}ms", start.elapsed().as_millis());
+        Ok(())
+    } else {
+        info!("Checking {target} over TCP");
+        let client = ClientBuilder::new()
+            .timeout(Duration::from_secs(1))
+            .build()
+            .context("Failed to build new reqwest client")?;
+
+        let url = format!("http://{target}/health");
+        let response = client.get(&url).send().await.with_context(|| format!("Request to {url} failed"))?;
+        let status = response.status();
+
+        if status != StatusCode::OK {
+            bail!("Expected /health to return code 200, got {status}",)
+        }
+
+        info!("Got 200 response in {}ms", start.elapsed().as_millis());
+        Ok(())
+    }
+}
+
+async fn server() -> Result<(), ErrorContext> {
     let config = Config::get()
         .await
         .context("Failed to get service config")?;
@@ -36,9 +97,12 @@ async fn main() -> Result<(), ErrorContext> {
                 .await
                 .with_context(|| format!("Failed to bind a TcpListener to {addr}"))?;
             info!("Listening on TCP {addr}!");
-            axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
-                .await
-                .with_context(|| format!("Error while serving on a TCP socket at {addr}"))
+            axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await
+            .with_context(|| format!("Error while serving on a TCP socket at {addr}"))
         });
     }
     if let Some(path) = config.listen.unix {
@@ -86,12 +150,8 @@ async fn main() -> Result<(), ErrorContext> {
         })
     };
 
-    let mut signals = Signals::new([
-        Signal::Term,
-        Signal::Int,
-        Signal::Quit,
-        Signal::Hup,
-    ]).context("Failed to set up signal hooks")?;
+    let mut signals = Signals::new([Signal::Term, Signal::Int, Signal::Quit, Signal::Hup])
+        .context("Failed to set up signal hooks")?;
 
     select! {
         biased;

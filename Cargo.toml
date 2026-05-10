@@ -12,6 +12,7 @@ cloneable_errors = "2.3.0"
 futures-lite = "2.6.1"
 html-escape = "0.2.13"
 indexmap = { version = "2.14.0", features = ["serde"] }
+reqwest = { version = "0.13.3", default-features = false }
 rustls-webpki = "0.103.13"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.149"
