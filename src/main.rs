@@ -18,7 +18,10 @@ use tokio::{
 };
 use tracing::{debug, info};
 
-use crate::{config::Config, routes::create_router};
+use crate::{
+    config::{FileConfig, ListenConfig},
+    routes::create_router,
+};
 
 mod config;
 mod get_ip;
@@ -27,31 +30,32 @@ mod routes;
 #[tokio::main]
 async fn main() -> Result<(), ErrorContext> {
     tracing_subscriber::fmt::init();
+    let config = FileConfig::get().context("Failed to read config")?;
 
     if env::args().nth(1).is_some_and(|x| x == "health") {
-        health().await
+        health(config.listen).await
     } else {
-        server().await
+        server(config).await
     }
 }
 
-async fn health() -> Result<(), ErrorContext> {
+async fn health(listen_config: ListenConfig) -> Result<(), ErrorContext> {
     info!("Running in healthcheck mode");
 
-    let Some(target) = env::args().nth(2) else {
-        bail!("No target provided; usage: ./ip_checher health <target>");
-    };
-
-    let start = Instant::now();
-    if let Some(unix_path) = target.strip_prefix("unix:") {
+    if let Some(unix_path) = listen_config.unix {
+        let start = Instant::now();
         info!("Checking {unix_path} over unix sockets");
         let client = ClientBuilder::new()
-            .unix_socket(unix_path)
+            .unix_socket(&*unix_path)
             .timeout(Duration::from_secs(1))
             .build()
             .context("Failed to build new reqwest client")?;
 
-        let response = client.get("http://localhost/health").send().await.with_context(|| format!("/health request over unix socket at {unix_path} failed"))?;
+        let response = client
+            .get("http://localhost/health")
+            .send()
+            .await
+            .with_context(|| format!("/health request over unix socket at {unix_path} failed"))?;
         let status = response.status();
 
         if status != StatusCode::OK {
@@ -59,8 +63,9 @@ async fn health() -> Result<(), ErrorContext> {
         }
 
         info!("Got 200 response in {}ms", start.elapsed().as_millis());
-        Ok(())
-    } else {
+    } 
+    if let Some(target) = listen_config.tcp {
+        let start = Instant::now();
         info!("Checking {target} over TCP");
         let client = ClientBuilder::new()
             .timeout(Duration::from_secs(1))
@@ -68,7 +73,11 @@ async fn health() -> Result<(), ErrorContext> {
             .context("Failed to build new reqwest client")?;
 
         let url = format!("http://{target}/health");
-        let response = client.get(&url).send().await.with_context(|| format!("Request to {url} failed"))?;
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .with_context(|| format!("Request to {url} failed"))?;
         let status = response.status();
 
         if status != StatusCode::OK {
@@ -76,14 +85,17 @@ async fn health() -> Result<(), ErrorContext> {
         }
 
         info!("Got 200 response in {}ms", start.elapsed().as_millis());
-        Ok(())
     }
+
+    info!("Healthchecks OK");
+    Ok(())
 }
 
-async fn server() -> Result<(), ErrorContext> {
-    let config = Config::get()
+async fn server(config: FileConfig) -> Result<(), ErrorContext> {
+    let config = config
+        .resolve()
         .await
-        .context("Failed to get service config")?;
+        .context("Failed to resolve service config")?;
 
     debug!("Parsed config: {config:?}");
 

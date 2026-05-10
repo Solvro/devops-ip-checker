@@ -114,34 +114,24 @@ fn default_unix_mode() -> u32 {
     0o666
 }
 
-impl Config {
-    pub async fn get() -> Result<Config, ErrorContext> {
+impl FileConfig {
+    pub fn get() -> Result<FileConfig, ErrorContext> {
         if let Some(config_text) = env::var_os("IP_CHECKER_CONFIG") {
             // config file in the envvar
-            let file_config: FileConfig = serde_json::from_slice(config_text.as_encoded_bytes())
+            serde_json::from_slice(config_text.as_encoded_bytes())
                 .context(
                     "Failed to parse the contents of IP_CHECKER_CONFIG envvar as FileConfig",
-                )?;
-            file_config
-                .resolve()
-                .await
-                .context("Failed to resolve parsed IP_CHECKER_CONFIG config")
+                )
         } else if let Some(config_b64) = env::var_os("IP_CHECKER_CONFIG_B64") {
             // config file base64-encoded in the envvar
             let decoded = base64::engine::general_purpose::URL_SAFE
                 .decode(config_b64.as_encoded_bytes())
                 .context("Failed to base64-decode the contents of IP_CHECKER_CONFIG_B64 envvar")?;
 
-            let file_config: FileConfig = serde_json::from_slice(&decoded)
-                .context("Failed to parse the base64-decoded contents of IP_CHECKER_CONFIG_B64 envvar as FileConfig")?;
-
-            file_config
-                .resolve()
-                .await
-                .context("Failed to resolve parsed IP_CHECKER_CONFIG_B64 config")
+            serde_json::from_slice(&decoded)
+                .context("Failed to parse the base64-decoded contents of IP_CHECKER_CONFIG_B64 envvar as FileConfig")
         } else if let Some(config_path) = env::var_os("IP_CHECKER_CONFIG_FILE") {
             // path to config file in the envvar
-            let file_config: FileConfig =
                 serde_json::from_reader(File::open(&config_path).with_context(|| {
                     format!(
                         "Failed to open {} (IP_CHECKER_CONFIG_FILE) for reading",
@@ -153,23 +143,15 @@ impl Config {
                         "Failed to parse the contents of {} (IP_CHECKER_CONFIG_FILE) as FileConfig",
                         config_path.display()
                     )
-                })?;
-            file_config.resolve().await.with_context(|| {
-                format!(
-                    "Failed to resolve parsed {} (IP_CHECKER_CONFIG_FILE) config",
-                    config_path.display()
-                )
-            })
+                })
         } else {
             warn!(
                 "Neither IP_CHECKER_CONFIG nor IP_CHECKER_CONFIG_FILE envvars were present - using default configuration"
             );
-            Ok(Config::default())
+            Ok(FileConfig::default())
         }
     }
-}
 
-impl FileConfig {
     pub async fn resolve(self) -> Result<Config, ErrorContext> {
         Ok(Config {
             app: AppConfig {
