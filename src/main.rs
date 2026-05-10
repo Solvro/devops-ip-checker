@@ -1,0 +1,85 @@
+use std::{
+    fs::{self, Permissions}, io::ErrorKind, net::SocketAddr, os::unix::fs::{MetadataExt, PermissionsExt}
+};
+
+use cloneable_errors::{ErrContext, ErrorContext, ResContext, anyhow, bail};
+use tokio::{
+    net::{TcpListener, UnixListener},
+    task::JoinSet,
+};
+use tracing::{debug, info};
+
+use crate::{config::Config, routes::create_router};
+
+mod config;
+mod get_ip;
+mod routes;
+
+#[tokio::main]
+async fn main() -> Result<(), ErrorContext> {
+    tracing_subscriber::fmt::init();
+
+    let config = Config::get()
+        .await
+        .context("Failed to get service config")?;
+
+    debug!("Parsed config: {config:?}");
+
+    let router = create_router(config.app);
+    let mut join_set = JoinSet::<Result<(), ErrorContext>>::new();
+
+    if let Some(addr) = config.listen.tcp {
+        let router = router.clone();
+        join_set.spawn(async move {
+            let listener = TcpListener::bind(&*addr)
+                .await
+                .with_context(|| format!("Failed to bind a TcpListener to {addr}"))?;
+            info!("Listening on TCP {addr}!");
+            axum::serve(listener, router.into_make_service_with_connect_info::<SocketAddr>())
+                .await
+                .with_context(|| format!("Error while serving on a TCP socket at {addr}"))
+        });
+    }
+    if let Some(path) = config.listen.unix {
+        join_set.spawn(async move {
+            // clear existing socket
+            match fs::metadata(&*path) {
+                Err(e) if e.kind() == ErrorKind::NotFound => (),
+                Err(e) => return Err(e.context(format!("Failed to stat {path}"))),
+                Ok(m) => {
+                    if m.mode() & 0o140000 == 0 {
+                        bail!("Non-socket file found at Unix socket listen location {path}",);
+                    }
+                    fs::remove_file(&*path)
+                        .with_context(|| format!("Failed to delete existing socket at {path}"))?;
+                }
+            }
+
+            let listener = UnixListener::bind(&*path)
+                .with_context(|| format!("Failed to bind an UnixListener to {path}"))?;
+
+            // set new perms
+            fs::set_permissions(&*path, Permissions::from_mode(config.listen.unix_mode))
+                .with_context(|| {
+                    format!(
+                        "Failed to set mode of socket at {path} to {:o}",
+                        config.listen.unix_mode
+                    )
+                })?;
+
+            info!("Listening on a Unix socket at {path}!");
+            axum::serve(listener, router)
+                .await
+                .with_context(|| format!("Error while serving on an Unix socket at {path}"))
+        });
+    } else {
+        drop(router);
+    }
+
+    Err(match join_set.join_next().await {
+        None => anyhow!("No listen targets specified"),
+        Some(Err(e)) => e.context("One of the listen tasks panicked"),
+        Some(Ok(Err(e))) => e.context("One of the listen tasks returned an error"),
+        Some(Ok(Ok(()))) => anyhow!("One of the listen tasks returned with no error"),
+    })
+}

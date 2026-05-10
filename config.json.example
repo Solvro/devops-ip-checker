@@ -1,0 +1,32 @@
+{
+  "ip_ranges": {
+    "10.0.0.0/8": "class A private",
+    "172.16.0.0/12": "class B private",
+    "192.168": "class C private",
+    "127": "localhost",
+    "fd::/8": "ipv6 private",
+    "::/0": "ipv6 internet",
+    "0.0.0.0/0": "ipv4 internet"
+  },
+  "trusted_proxies": [
+    "127.0.0.0/8",
+    "172.16.21.37/26"
+  ],
+  "forwarded_headers": ["X-Real-Ip"],
+  "server_name": {
+    "source": "tls_certificate",
+    "target": "host.docker.internal:443",
+    "hostname": "solvro.pl",
+    "mappings": {
+      "*.b.solvro.pl": "biuro",
+      "*.l.solvro.pl": "localhost",
+      "*.s.solvro.pl": "seohost",
+      "*.w.solvro.pl": "wcss",
+      "*.e.solvro.pl": "eventownik"
+    }
+  },
+  "listen": {
+    "tcp": "[::]:8080",
+    "unix": "/tmp/ip-checker.sock"
+  }
+}

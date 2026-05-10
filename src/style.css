@@ -1,0 +1,35 @@
+body {
+  background: #222;
+  color: #eee;
+  font-family: sans-serif;
+  margin: 0;
+  height: 100vh;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#ip-header {
+  font-size: 7.5vh;
+  margin: 0;
+}
+
+#ip {
+  font-size: 20vh;
+  margin: 0;
+}
+
+#ip-class {
+  color: #ccc;
+  font-size: 5vh;
+  margin: 0;
+}
+
+#server-name {
+  color: #ccc;
+  position: absolute;
+  bottom: 0.5em;
+  margin: 0;
+}
