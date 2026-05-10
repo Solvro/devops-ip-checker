@@ -41,6 +41,19 @@ body {
   color: #ccc;
   position: absolute;
   font-size: 2em;
+  bottom: 2.5em;
+  margin: 0;
+}
+
+#git {
+  color: #ccc;
+  position: absolute;
+  font-size: 1.5em;
   bottom: 0.5em;
   margin: 0;
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }

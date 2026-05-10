@@ -27,6 +27,10 @@ mod config;
 mod get_ip;
 mod routes;
 
+mod metadata {
+    include!(concat!(env!("OUT_DIR"), "/metadata.rs"));
+}
+
 #[tokio::main]
 async fn main() -> Result<(), ErrorContext> {
     tracing_subscriber::fmt::init();

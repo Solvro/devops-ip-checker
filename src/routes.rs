@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::{net::IpAddr, sync::LazyLock};
 
 use axum::{
     Router,
@@ -10,7 +10,26 @@ use axum::{
 use cidr::IpCidr;
 use indexmap::IndexMap;
 
-use crate::{config::AppConfig, get_ip::ExtractIp};
+use crate::{config::AppConfig, get_ip::ExtractIp, metadata::{BUILD_TIME, GIT_HASH, GIT_REF}};
+
+static METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(||
+    if let Some(hash) = GIT_HASH {
+        format!(
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{}">devops-ip-checker {}{} {}</a><h5>"#,
+            hash,
+            &hash[..8],
+            if let Some(gref) = GIT_REF {
+                format!(" ({gref})")
+            } else {
+                String::new()
+            },
+            BUILD_TIME,
+        ).leak()
+    } else {
+        ""
+    }
+);
+
 
 pub fn create_router(config: AppConfig) -> Router<()> {
     Router::new()
@@ -45,6 +64,7 @@ async fn main_route(
         <h3 id="ip"{}>{}</h3>
         {}
         {}
+        {}
     </body>
 </html>"#,
         if maybe_ip.is_some_and(|ExtractIp(ip)| ip.is_ipv6()) {
@@ -70,7 +90,8 @@ async fn main_route(
             )
         } else {
             String::new()
-        }
+        },
+        *METADATA_FOOTER
     ))
 }
 

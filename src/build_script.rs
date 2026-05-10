@@ -1,0 +1,107 @@
+use std::{
+    env::{self},
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
+
+use chrono::Local;
+use cloneable_errors::{ErrorContext, ResContext, bail};
+
+struct GitMetadata {
+    r#ref: Option<String>,
+    hash: String,
+}
+
+fn main() -> Result<(), ErrorContext> {
+    let metadata_file =
+        Path::new(&env::var("OUT_DIR").context("OUT_DIR not set")?).join("metadata.rs");
+    let mut metadata_file = File::create(&metadata_file)
+        .with_context(|| format!("Failed to create file {}", metadata_file.display()))?;
+
+    let git_meta = get_git_metadata()
+        .map_err(|e| {
+            eprintln!("Failed to extract current git commit hash from build context:\n{e:?}");
+        })
+        .ok();
+
+    writeln!(
+        &mut metadata_file,
+        "/// Hash of the git commit this server was built from\npub const GIT_HASH: Option<&str> = {:?};",
+        git_meta.as_ref().map(|m| &m.hash),
+    ).context("Failed to write GIT_HASH constant to metadata file")?;
+    writeln!(
+        &mut metadata_file,
+        "/// Git ref this server was built from\npub const GIT_REF: Option<&str> = {:?};",
+        git_meta.as_ref().and_then(|m| m.r#ref.as_ref()),
+    )
+    .context("Failed to write GIT_REF constant to metadata file")?;
+    writeln!(
+        &mut metadata_file,
+        "/// Timestamp in RFC2822 when this server was built\npub const BUILD_TIME: &str = {:?};",
+        get_build_timestamp(),
+    )
+    .context("Failed to write BUILD_TIME constant to metadata file")?;
+
+    Ok(())
+}
+
+fn read_file<P: AsRef<Path>>(path: P) -> Result<String, ErrorContext> {
+    let path: &Path = path.as_ref();
+    let mut file =
+        File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
+    let mut buf = String::with_capacity(64);
+    file.read_to_string(&mut buf)
+        .with_context(|| format!("Failed to read {}", path.display()))?;
+    Ok(buf)
+}
+
+fn get_git_metadata() -> Result<GitMetadata, ErrorContext> {
+    let mut head_file = read_file(".git/HEAD")?;
+
+    if let Some(r#ref) = head_file.trim().strip_prefix("ref: ") {
+        let git_dir = env::current_dir()
+            .context("Failed to get path to current dir")?
+            .join(".git");
+        let ref_path = git_dir
+            .join(r#ref)
+            .canonicalize()
+            .context("Failed to canonicalize the path to the git ref file pointed by HEAD")?;
+
+        if !ref_path.starts_with(git_dir) {
+            bail!(".git/HEAD contained an invalid ref");
+        }
+
+        let mut ref_file = read_file(&ref_path)?;
+        ref_file.make_ascii_lowercase();
+        let ref_file = ref_file.trim();
+
+        if ref_file.len() != 40 || !ref_file.chars().all(|c| c.is_ascii_hexdigit()) {
+            bail!(
+                "{} (pointed to by .git/HEAD) did not contain a git commit hash",
+                ref_path.display()
+            );
+        }
+
+        Ok(GitMetadata {
+            r#ref: Some(r#ref.to_string()),
+            hash: ref_file.to_string(),
+        })
+    } else {
+        head_file.make_ascii_lowercase();
+        let head_file = head_file.trim();
+
+        if head_file.len() != 40 || !head_file.chars().all(|c| c.is_ascii_hexdigit()) {
+            bail!(".git/HEAD did not contain a ref or git commit hash");
+        }
+
+        Ok(GitMetadata {
+            r#ref: None,
+            hash: head_file.to_string(),
+        })
+    }
+}
+
+fn get_build_timestamp() -> String {
+    Local::now().to_rfc2822()
+}

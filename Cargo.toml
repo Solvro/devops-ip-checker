@@ -2,6 +2,7 @@
 name = "ip-checker"
 version = "1.0.0"
 edition = "2024"
+build = "src/build_script.rs"
 
 [dependencies]
 async-signal = "0.2.14"
@@ -29,3 +30,7 @@ todo = "warn"
 [profile.release]
 strip = true
 lto = "thin"
+
+[build-dependencies]
+chrono = { version = "0.4.44", default-features = false, features = ["std", "clock"] }
+cloneable_errors = "2.3.0"
