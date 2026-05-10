@@ -2,10 +2,11 @@ use std::{
     fs::{self, Permissions}, io::ErrorKind, net::SocketAddr, os::unix::fs::{MetadataExt, PermissionsExt}
 };
 
+use async_signal::{Signal, Signals};
 use cloneable_errors::{ErrContext, ErrorContext, ResContext, anyhow, bail};
+use futures_lite::StreamExt;
 use tokio::{
-    net::{TcpListener, UnixListener},
-    task::JoinSet,
+    net::{TcpListener, UnixListener}, select, task::JoinSet
 };
 use tracing::{debug, info};
 
@@ -76,10 +77,25 @@ async fn main() -> Result<(), ErrorContext> {
         drop(router);
     }
 
-    Err(match join_set.join_next().await {
-        None => anyhow!("No listen targets specified"),
-        Some(Err(e)) => e.context("One of the listen tasks panicked"),
-        Some(Ok(Err(e))) => e.context("One of the listen tasks returned an error"),
-        Some(Ok(Ok(()))) => anyhow!("One of the listen tasks returned with no error"),
-    })
+    let joiner = async {
+        Err(match join_set.join_next().await {
+            None => anyhow!("No listen targets specified"),
+            Some(Err(e)) => e.context("One of the listen tasks panicked"),
+            Some(Ok(Err(e))) => e.context("One of the listen tasks returned an error"),
+            Some(Ok(Ok(()))) => anyhow!("One of the listen tasks returned with no error"),
+        })
+    };
+
+    let mut signals = Signals::new([
+        Signal::Term,
+        Signal::Int,
+        Signal::Quit,
+        Signal::Hup,
+    ]).context("Failed to set up signal hooks")?;
+
+    select! {
+        biased;
+        res = joiner => res,
+        _ = signals.next() => Ok(()),
+    }
 }
