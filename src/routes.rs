@@ -1,7 +1,11 @@
 use std::net::IpAddr;
 
 use axum::{
-    Router, extract::State, http::header, response::{Html, IntoResponse}, routing::get
+    Router,
+    extract::State,
+    http::header,
+    response::{Html, IntoResponse},
+    routing::get,
 };
 use cidr::IpCidr;
 use indexmap::IndexMap;
@@ -9,7 +13,11 @@ use indexmap::IndexMap;
 use crate::{config::AppConfig, get_ip::ExtractIp};
 
 pub fn create_router(config: AppConfig) -> Router<()> {
-    Router::new().route("/", get(main_route)).route("/style.css", get(styles)).with_state(config)
+    Router::new()
+        .route("/", get(main_route))
+        .route("/style.css", get(styles))
+        .route("/health", get(healthcheck))
+        .with_state(config)
 }
 
 fn classify_ip(addr: IpAddr, ranges: &IndexMap<IpCidr, Box<str>>) -> Option<&str> {
@@ -42,9 +50,7 @@ async fn main_route(
         html_escape::encode_safe(
             &maybe_ip.map_or_else(|| "nieznane".to_string(), |ExtractIp(ip)| ip.to_string())
         ),
-        if let Some(class) =
-            maybe_ip.and_then(|ExtractIp(ip)| classify_ip(ip, &config.ip_ranges))
-        {
+        if let Some(class) = maybe_ip.and_then(|ExtractIp(ip)| classify_ip(ip, &config.ip_ranges)) {
             format!(
                 r#"<h4 id="ip-class">({})</h4>"#,
                 html_escape::encode_safe(class)
@@ -68,4 +74,8 @@ async fn styles() -> impl IntoResponse {
         [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
         include_str!("./style.css"),
     )
+}
+
+async fn healthcheck() -> impl IntoResponse {
+    "elo żelo!!!"
 }
