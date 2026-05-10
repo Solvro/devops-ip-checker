@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 async-signal = "0.2.14"
 axum = "0.8.9"
+base64 = "0.22.1"
 cidr = "0.3.2"
 cloneable_errors = "2.3.0"
 futures-lite = "2.6.1"

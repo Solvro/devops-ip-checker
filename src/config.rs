@@ -1,5 +1,6 @@
 use std::{env, fs::File, hash::Hash, mem, sync::Arc};
 
+use base64::Engine;
 use cidr::{
     IpCidr,
     errors::NetworkParseError,
@@ -116,6 +117,7 @@ fn default_unix_mode() -> u32 {
 impl Config {
     pub async fn get() -> Result<Config, ErrorContext> {
         if let Some(config_text) = env::var_os("IP_CHECKER_CONFIG") {
+            // config file in the envvar
             let file_config: FileConfig = serde_json::from_slice(config_text.as_encoded_bytes())
                 .context(
                     "Failed to parse the contents of IP_CHECKER_CONFIG envvar as FileConfig",
@@ -124,7 +126,21 @@ impl Config {
                 .resolve()
                 .await
                 .context("Failed to resolve parsed IP_CHECKER_CONFIG config")
+        } else if let Some(config_b64) = env::var_os("IP_CHECKER_CONFIG_B64") {
+            // config file base64-encoded in the envvar
+            let decoded = base64::engine::general_purpose::URL_SAFE
+                .decode(config_b64.as_encoded_bytes())
+                .context("Failed to base64-decode the contents of IP_CHECKER_CONFIG_B64 envvar")?;
+
+            let file_config: FileConfig = serde_json::from_slice(&decoded)
+                .context("Failed to parse the base64-decoded contents of IP_CHECKER_CONFIG_B64 envvar as FileConfig")?;
+
+            file_config
+                .resolve()
+                .await
+                .context("Failed to resolve parsed IP_CHECKER_CONFIG_B64 config")
         } else if let Some(config_path) = env::var_os("IP_CHECKER_CONFIG_FILE") {
+            // path to config file in the envvar
             let file_config: FileConfig =
                 serde_json::from_reader(File::open(&config_path).with_context(|| {
                     format!(
