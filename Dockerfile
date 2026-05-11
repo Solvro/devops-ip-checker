@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.23
 FROM docker.io/library/rust:alpine AS builder
 # add only what's necessary
 COPY --parents src/ Cargo.lock Cargo.toml /source/
