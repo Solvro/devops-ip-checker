@@ -7,6 +7,7 @@ WORKDIR /source
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=alpine_cargo_dir \
     --mount=type=cache,target=/source/target,id=ip_checker_target \
     --mount=type=bind,target=/context \
+    touch src/build_script.rs && \
     GIT_DIR=/context/.git cargo build --release --locked && \
     cp /source/target/release/ip-checker /
 
