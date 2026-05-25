@@ -8,10 +8,7 @@
     "::/0": "ipv6 internet",
     "0.0.0.0/0": "ipv4 internet"
   },
-  "trusted_proxies": [
-    "127.0.0.0/8",
-    "172.16.21.37/26"
-  ],
+  "trusted_proxies": ["127.0.0.0/8", "172.16.21.37/26"],
   "forwarded_headers": ["X-Real-Ip"],
   "server_name": {
     "source": "static",
@@ -19,6 +16,6 @@
   },
   "listen": {
     "tcp": "[::]:8080",
-    "unix": "./ip-checker.sock"
+    "unix": "./host/ip-checker.sock"
   }
 }
