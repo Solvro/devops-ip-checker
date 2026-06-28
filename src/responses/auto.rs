@@ -71,7 +71,7 @@ impl<S: Send + Sync> FromRequestParts<S> for PreferredResponseType {
 
             // match the format and update the format preference ranking
             match format_name {
-                "text/html" | "text/*" => {
+                "text/html" => {
                     let entry = &mut format_preference[0];
                     entry.1 = Some(quality.max(entry.1.unwrap_or(0.)));
                 }
@@ -80,6 +80,13 @@ impl<S: Send + Sync> FromRequestParts<S> for PreferredResponseType {
                     entry.1 = Some(quality.max(entry.1.unwrap_or(0.)));
                 }
                 "text/plain" => {
+                    let entry = &mut format_preference[2];
+                    entry.1 = Some(quality.max(entry.1.unwrap_or(0.)));
+                }
+                "text/*" => {
+                    // matches both plaintext and html
+                    let entry = &mut format_preference[0];
+                    entry.1 = Some(quality.max(entry.1.unwrap_or(0.)));
                     let entry = &mut format_preference[2];
                     entry.1 = Some(quality.max(entry.1.unwrap_or(0.)));
                 }
