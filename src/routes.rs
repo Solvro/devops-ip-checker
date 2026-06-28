@@ -17,6 +17,7 @@ pub fn create_router(config: AppConfig) -> Router<()> {
         .route("/html", get(html_route))
         .route("/text", get(plaintext_route))
         .route("/json", get(json_route))
+        .route("/ip", get(just_the_ip_route))
         .route("/style.css", get(styles))
         .route("/health", get(healthcheck))
         .with_state(config)
@@ -55,6 +56,10 @@ async fn json_route(
     maybe_ip: Option<ExtractIp>,
 ) -> impl IntoResponse {
     json_response(config, maybe_ip)
+}
+
+async fn just_the_ip_route(maybe_ip: Option<ExtractIp>) -> impl IntoResponse {
+    maybe_ip.map_or_else(|| "unknown".to_owned(), |ip| ip.0.to_string())
 }
 
 async fn styles() -> impl IntoResponse {
