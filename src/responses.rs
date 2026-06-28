@@ -8,26 +8,56 @@ use crate::{
     metadata::{BUILD_TIME, GIT_HASH, GIT_REF},
 };
 
-static METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(|| {
+static TEXT_METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(|| {
     if let Some(hash) = GIT_HASH {
         format!(
-            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{}">devops-ip-checker {}{} {}</a><h5>"#,
-            html_escape::encode_safe(hash),
-            html_escape::encode_safe(&hash[..8]),
+            r"devops-ip-checker {}{} {}",
+            &hash[..8],
             if let Some(gref) = GIT_REF {
-                format!(" ({})", html_escape::encode_safe(gref))
+                format!(" ({gref})")
             } else {
                 String::new()
             },
-            html_escape::encode_safe(BUILD_TIME),
-        ).leak()
+            BUILD_TIME,
+        )
+    } else {
+        format!(r"devops-ip-checker {BUILD_TIME}")
+    }
+    .leak()
+});
+
+static HTML_METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(|| {
+    if let Some(hash) = GIT_HASH {
+        format!(
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker/commit/{}">{}</a><h5>"#,
+            html_escape::encode_safe(hash),
+            html_escape::encode_safe(*TEXT_METADATA_FOOTER),
+        )
     } else {
         format!(
-            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker">devops-ip-checker {}</a><h5>"#,
-            html_escape::encode_safe(BUILD_TIME),
-        ).leak()
-    }
+            r#"<h5 id="git"><a href="https://github.com/Solvro/devops-ip-checker">{}</a><h5>"#,
+            html_escape::encode_safe(*TEXT_METADATA_FOOTER),
+        )
+    }.leak()
 });
+
+pub fn plaintext_response(config: AppConfig, maybe_ip: Option<ExtractIp>) -> String {
+    format!(
+        "Twoje IP: {}{}{}\n{}",
+        &maybe_ip.map_or_else(|| "nieznane".to_string(), |ExtractIp(ip)| ip.to_string()),
+        if let Some(class) = maybe_ip.and_then(|ExtractIp(ip)| classify_ip(ip, &config.ip_ranges)) {
+            format!(" ({})", html_escape::encode_safe(class))
+        } else {
+            String::new()
+        },
+        if let Some(server) = config.server_name {
+            format!("\nserwer: {}", html_escape::encode_safe(&server))
+        } else {
+            String::new()
+        },
+        *TEXT_METADATA_FOOTER
+    )
+}
 
 pub fn html_response(config: AppConfig, maybe_ip: Option<ExtractIp>) -> Html<String> {
     Html(format!(
@@ -70,6 +100,6 @@ pub fn html_response(config: AppConfig, maybe_ip: Option<ExtractIp>) -> Html<Str
         } else {
             String::new()
         },
-        *METADATA_FOOTER
+        *HTML_METADATA_FOOTER
     ))
 }
