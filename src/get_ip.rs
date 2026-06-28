@@ -8,6 +8,8 @@ use axum::{
     extract::{ConnectInfo, FromRequestParts, OptionalFromRequestParts},
     http::request::Parts,
 };
+use cidr::IpCidr;
+use indexmap::IndexMap;
 
 use crate::config::AppConfig;
 
@@ -60,4 +62,12 @@ impl FromRequestParts<AppConfig> for ExtractIp {
             Ok(None) => Err("Failed to find your IP address"),
         }
     }
+}
+
+pub fn classify_ip(addr: IpAddr, ranges: &IndexMap<IpCidr, Box<str>>) -> Option<&str> {
+    ranges
+        .iter()
+        .find(|(cidr, ..)| cidr.contains(&addr))
+        .map(|(_, name)| name)
+        .map(|s| &**s)
 }

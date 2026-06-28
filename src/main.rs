@@ -25,6 +25,7 @@ use crate::{
 
 mod config;
 mod get_ip;
+mod responses;
 mod routes;
 
 mod metadata {
@@ -67,7 +68,7 @@ async fn health(listen_config: ListenConfig) -> Result<(), ErrorContext> {
         }
 
         info!("Got 200 response in {}ms", start.elapsed().as_millis());
-    } 
+    }
     if let Some(target) = listen_config.tcp {
         let start = Instant::now();
         info!("Checking {target} over TCP");
