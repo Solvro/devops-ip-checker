@@ -3,7 +3,7 @@ use axum::{Router, extract::State, http::header, response::IntoResponse, routing
 use crate::{
     config::AppConfig,
     get_ip::ExtractIp,
-    responses::{html_response, plaintext_response},
+    responses::{html::html_response, text::plaintext_response},
 };
 
 pub fn create_router(config: AppConfig) -> Router<()> {
