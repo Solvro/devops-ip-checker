@@ -3,7 +3,12 @@ use axum::{Router, extract::State, http::header, response::IntoResponse, routing
 use crate::{
     config::AppConfig,
     get_ip::ExtractIp,
-    responses::{html::html_response, json::json_response, text::plaintext_response},
+    responses::{
+        auto::{AutoResponse, PreferredResponseType},
+        html::html_response,
+        json::json_response,
+        text::plaintext_response,
+    },
 };
 
 pub fn create_router(config: AppConfig) -> Router<()> {
@@ -20,8 +25,15 @@ pub fn create_router(config: AppConfig) -> Router<()> {
 async fn main_route(
     State(config): State<AppConfig>,
     maybe_ip: Option<ExtractIp>,
+    pref_type: PreferredResponseType,
 ) -> impl IntoResponse {
-    html_response(config, maybe_ip)
+    match pref_type {
+        PreferredResponseType::Html => AutoResponse::Html(html_response(config, maybe_ip)),
+        PreferredResponseType::Json => AutoResponse::Json(json_response(config, maybe_ip)),
+        PreferredResponseType::Text | PreferredResponseType::Unknown => {
+            AutoResponse::Text(plaintext_response(config, maybe_ip))
+        }
+    }
 }
 
 async fn html_route(
