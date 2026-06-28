@@ -5,12 +5,20 @@ use crate::{config::AppConfig, get_ip::ExtractIp, responses::html_response};
 pub fn create_router(config: AppConfig) -> Router<()> {
     Router::new()
         .route("/", get(main_route))
+        .route("/html", get(html_route))
         .route("/style.css", get(styles))
         .route("/health", get(healthcheck))
         .with_state(config)
 }
 
 async fn main_route(
+    State(config): State<AppConfig>,
+    maybe_ip: Option<ExtractIp>,
+) -> impl IntoResponse {
+    html_response(config, maybe_ip)
+}
+
+async fn html_route(
     State(config): State<AppConfig>,
     maybe_ip: Option<ExtractIp>,
 ) -> impl IntoResponse {
