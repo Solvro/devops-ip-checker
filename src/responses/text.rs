@@ -27,7 +27,7 @@ pub(super) static TEXT_METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(|
 pub fn plaintext_response(config: AppConfig, maybe_ip: Option<ExtractIp>) -> String {
     format!(
         "Twoje IP: {}{}{}\n{}",
-        &maybe_ip.map_or_else(|| "nieznane".to_string(), |ExtractIp(ip)| ip.to_string()),
+        maybe_ip.map_or_else(|| "nieznane".to_string(), |ExtractIp(ip)| ip.to_string()),
         if let Some(class) = maybe_ip.and_then(|ExtractIp(ip)| classify_ip(ip, &config.ip_ranges)) {
             format!(" ({})", html_escape::encode_safe(class))
         } else {
