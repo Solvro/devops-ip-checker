@@ -39,18 +39,18 @@ pub enum PreferredResponseType {
 impl<S: Send + Sync> FromRequestParts<S> for PreferredResponseType {
     type Rejection = Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> {
         let Some(accept_header) = parts.headers.get(header::ACCEPT) else {
-            return Ok(Self::Unknown);
+            return std::future::ready(Ok(Self::Unknown));
         };
         let Ok(accept_header) = accept_header.to_str() else {
-            return Ok(Self::Unknown);
+            return std::future::ready(Ok(Self::Unknown));
         };
-        let mut format_preference: [(PreferredResponseType, Option<f32>); 3] = [
-            (PreferredResponseType::Html, None),
-            (PreferredResponseType::Json, None),
-            (PreferredResponseType::Text, None),
-        ];
+        let mut format_preference: [(Self, Option<f32>); 3] =
+            [(Self::Html, None), (Self::Json, None), (Self::Text, None)];
 
         // iterate over the specified formats
         for format in accept_header.split(',') {
@@ -101,13 +101,13 @@ impl<S: Send + Sync> FromRequestParts<S> for PreferredResponseType {
             .reduce(f32::max)
         else {
             // no formats matched
-            return Ok(Self::Unknown);
+            return std::future::ready(Ok(Self::Unknown));
         };
 
         // then find which format got it
-        Ok(format_preference
+        std::future::ready(Ok(format_preference
             .iter()
             .find(|x| x.1 == Some(best_score))
-            .map_or(Self::Unknown, |x| x.0))
+            .map_or(Self::Unknown, |x| x.0)))
     }
 }

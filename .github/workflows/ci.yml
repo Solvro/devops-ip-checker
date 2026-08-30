@@ -6,6 +6,10 @@ on:
   pull_request:
   merge_group:
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   cargo-tests:
     name: Lint & test
@@ -31,51 +35,64 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Attempt to build the image
+      - name: Build and export the image
         run: |
           docker build -t ip-checker .
+          docker image save ip-checker | zstd > docker-image.tar.zst
 
-      - name: Test the image
-        run: |
-          # set up the container
-          mkdir container-shared
-          chmod 1777 container-shared
-          docker run -dh ip-checker --name ip-checker-container --rm -v $PWD/container-shared:/host -v $PWD/config.test.json:/config.json:ro -e IP_CHECKER_CONFIG_FILE=/config.json -p 8080:8080 --health-interval 5s ip-checker
-          # give it like 3 seconds
-          sleep 3
-          STOP_TOKEN="`uuidgen`"
-          echo "::stop-commands::$STOP_TOKEN"
-          # check status
-          docker inspect ip-checker-container -f '{{ .State.Status }}' | grep '^running$'
-          FAILS=0
-          while true
-          do
-            HEALTH="`docker inspect ip-checker-container -f '{{ .State.Health.Status }}'`"
-            echo "$HEALTH"
-            if [[ "$HEALTH" == "healthy" ]]
-            then
-              break
-            else
-              FAILS=$(($FAILS + 1))
-              if [[ "$FAILS" -ge 5 ]]
-              then
-                exit 1
-              fi
-            fi
-            sleep 5
-          done
-          # run our own checks
-          echo manual healthcheck TCP
-          curl --fail-with-body -v --max-time 1 http://localhost:8080/health
-          echo manual healthcheck unix
-          curl --fail-with-body -v --max-time 1 --unix-socket ./container-shared/ip-checker.sock http://localhost:8080/health
-          echo main route check TCP
-          curl --fail-with-body -v --max-time 1 http://localhost:8080/
-          echo main route check unix
-          curl --fail-with-body -v --max-time 1 --unix-socket ./container-shared/ip-checker.sock http://localhost:8080/
-          # finish
-          docker stop ip-checker-container
-          echo "::$STOP_TOKEN::"
+      - parallel:
+          - name: Upload image as artifact
+            uses: actions/upload-artifact@v7
+            id: upload
+            with:
+              name: docker-image
+              path: docker-image.tar.zst
+              if-no-files-found: error
+              archive: false
+
+          - name: Test the image
+            run: |
+              # set up the container
+              mkdir container-shared
+              chmod 1777 container-shared
+              docker run -dh ip-checker --name ip-checker-container --rm -v $PWD/container-shared:/host -v $PWD/config.test.json:/config.json:ro -e IP_CHECKER_CONFIG_FILE=/config.json -p 8080:8080 --health-interval 5s ip-checker
+              # give it like 3 seconds
+              sleep 3
+              STOP_TOKEN="`uuidgen`"
+              echo "::stop-commands::$STOP_TOKEN"
+              # check status
+              docker inspect ip-checker-container -f '{{ .State.Status }}' | grep '^running$'
+              FAILS=0
+              while true
+              do
+                HEALTH="`docker inspect ip-checker-container -f '{{ .State.Health.Status }}'`"
+                echo "$HEALTH"
+                if [[ "$HEALTH" == "healthy" ]]
+                then
+                  break
+                else
+                  FAILS=$(($FAILS + 1))
+                  if [[ "$FAILS" -ge 5 ]]
+                  then
+                    exit 1
+                  fi
+                fi
+                sleep 5
+              done
+              # run our own checks
+              echo manual healthcheck TCP
+              curl --fail-with-body -v --max-time 1 http://localhost:8080/health
+              echo manual healthcheck unix
+              curl --fail-with-body -v --max-time 1 --unix-socket ./container-shared/ip-checker.sock http://localhost:8080/health
+              echo main route check TCP
+              curl --fail-with-body -v --max-time 1 http://localhost:8080/
+              echo main route check unix
+              curl --fail-with-body -v --max-time 1 --unix-socket ./container-shared/ip-checker.sock http://localhost:8080/
+              # finish
+              docker stop ip-checker-container
+              echo "::$STOP_TOKEN::"
+    outputs:
+      artifact: ${{ steps.upload.outputs.artifact-id }}
 
   bare-metal-build:
     name: Build & test rust executable
@@ -117,3 +134,82 @@ jobs:
           kill -INT %1
           wait
           echo "::$STOP_TOKEN::"
+
+  create-tag:
+    name: Create tag on new version
+    runs-on: ubuntu-latest
+    needs: [cargo-tests, docker-build, bare-metal-build]
+    if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create tag if needed
+        id: main
+        shell: bash
+        run: |
+          VERSION=`tomlq -r '.version' Cargo.toml`
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "$VERSION" == "0.0.0" ]];
+          then
+            # fake version, quit
+            echo "is_new=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if ! git fetch origin "v$VERSION"
+          then
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+            echo "is_new=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_new=false" >> $GITHUB_OUTPUT
+          fi
+    outputs:
+      version: ${{ steps.main.outputs.version }}
+      is_new: ${{ steps.main.outputs.is_new }}
+
+  publish:
+    name: Push image to ghcr.io
+    runs-on: ubuntu-latest
+    needs: [cargo-tests, docker-build, bare-metal-build, create-tag]
+    if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      packages: write
+    steps:
+      - parallel:
+          - name: Download the docker image
+            uses: actions/download-artifact@v8
+            with:
+              artifact-ids: ${{ needs.docker-build.outputs.artifact }}
+              skip-decompress: true
+          - name: Authenticate with ghcr.io
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              USER: ${{ github.actor }}
+            run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$USER" --password-stdin
+      - name: Import image, retag and publish
+        env:
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.create-tag.outputs.version }}
+          TAG_VERSION: ${{ needs.create-tag.outputs.is_new }}
+        run: |
+          docker image load -i docker-image.tar.zst
+          TAGS=("latest" "$SHA")
+          if [[ "$TAG_VERSION" == "true" ]]
+          then
+            while true
+            do
+              TAGS+=("v$VERSION")
+              if ! [[ "$VERSION" == *.* ]]
+              then
+                break
+              fi
+              VERSION="${VERSION%.*}"
+            done
+          fi
+          for TAG in "${TAGS[@]}"
+          do
+            docker image tag ip-checker:latest "ghcr.io/$REPO:$TAG"
+            docker image push "ghcr.io/$REPO:$TAG"
+          done
