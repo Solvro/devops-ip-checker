@@ -6,7 +6,7 @@ use cidr::{
     errors::NetworkParseError,
     parsers::{parse_cidr_full_ignore_hostbits, parse_loose_ip, parse_short_ip_address_as_cidr},
 };
-use cloneable_errors::{ErrorContext, ResContext};
+use cloneable_errors::{ErrContext, ErrorContext, ResContext};
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Deserializer,
@@ -83,6 +83,7 @@ pub enum ServerNameSource {
         /// first match wins
         mappings: IndexMap<Box<str>, Arc<str>>,
     },
+    Hostname,
     #[default]
     None,
 }
@@ -211,6 +212,20 @@ impl ServerNameSource {
         match self {
             Self::None => Ok(None),
             Self::Static { name } => Ok(Some(name)),
+            Self::Hostname => {
+                #[cfg(not(any(unix, target_os = "redox", target_os = "windows")))]
+                cloneable_errors::bail!("Failed to get system hostname: unsupported target");
+
+                match hostname::get() {
+                    Err(e) => Err(e.context("Failed to get system hostname")),
+                    Ok(hostname) => Ok(Some(
+                        hostname
+                            .to_str()
+                            .context("System hostname is not UTF-8")?
+                            .into(),
+                    )),
+                }
+            }
             Self::TlsCertificate {
                 target,
                 hostname,
