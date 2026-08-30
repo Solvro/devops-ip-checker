@@ -19,10 +19,10 @@ pub struct ExtractIp(pub IpAddr);
 impl OptionalFromRequestParts<AppConfig> for ExtractIp {
     type Rejection = Infallible;
 
-    async fn from_request_parts(
+    fn from_request_parts(
         parts: &mut Parts,
         state: &AppConfig,
-    ) -> Result<Option<Self>, Self::Rejection> {
+    ) -> impl Future<Output = Result<Option<Self>, Self::Rejection>> {
         // check if we have an IP address and it's not a trusted one
         if let Some(info) = parts.extensions.get::<ConnectInfo<SocketAddr>>() {
             let addr = info.0.ip().to_canonical();
@@ -32,7 +32,7 @@ impl OptionalFromRequestParts<AppConfig> for ExtractIp {
                 .any(|cidr| cidr.contains(&addr))
             {
                 // return it as the user's IP
-                return Ok(Some(Self(addr)));
+                return std::future::ready(Ok(Some(Self(addr))));
             }
         }
         // we either have a proxy IP, or we don't have an IP (i.e. it's an unix socket connection)
@@ -42,10 +42,10 @@ impl OptionalFromRequestParts<AppConfig> for ExtractIp {
                 continue;
             };
             if let Some(addr) = val.to_str().ok().and_then(|val| IpAddr::from_str(val).ok()) {
-                return Ok(Some(Self(addr.to_canonical())));
+                return std::future::ready(Ok(Some(Self(addr.to_canonical()))));
             }
         }
-        Ok(None)
+        std::future::ready(Ok(None))
     }
 }
 
