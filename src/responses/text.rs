@@ -3,13 +3,14 @@ use std::sync::LazyLock;
 use crate::{
     config::AppConfig,
     get_ip::{ExtractIp, classify_ip},
-    metadata::{BUILD_TIME, GIT_HASH, GIT_REF},
+    metadata::{BUILD_TIME, GIT_HASH, GIT_REF, VERSION},
 };
 
 pub(super) static TEXT_METADATA_FOOTER: LazyLock<&'static str> = LazyLock::new(|| {
     if let Some(hash) = GIT_HASH {
         format!(
-            r"devops-ip-checker {}{} {}",
+            r"devops-ip-checker v{} {}{} {}",
+            VERSION,
             &hash[..8],
             if let Some(gref) = GIT_REF {
                 format!(" ({gref})")

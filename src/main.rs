@@ -30,6 +30,9 @@ mod routes;
 
 mod metadata {
     include!(concat!(env!("OUT_DIR"), "/metadata.rs"));
+
+    /// Version of this crate
+    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 }
 
 #[tokio::main]
