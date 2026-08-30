@@ -202,6 +202,8 @@ jobs:
           TAG_VERSION: ${{ needs.create-tag.outputs.is_new }}
         run: |
           docker image load -i docker-image.tar.zst
+          # lowercase the thing (github actions does not have a func to do this, so we do it in bash)
+          REPO="${REPO,,*}"
           TAGS=("latest" "$SHA")
           if [[ "$TAG_VERSION" == "true" ]]
           then
