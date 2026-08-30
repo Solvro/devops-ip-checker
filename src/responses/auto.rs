@@ -49,11 +49,8 @@ impl<S: Send + Sync> FromRequestParts<S> for PreferredResponseType {
         let Ok(accept_header) = accept_header.to_str() else {
             return std::future::ready(Ok(Self::Unknown));
         };
-        let mut format_preference: [(PreferredResponseType, Option<f32>); 3] = [
-            (PreferredResponseType::Html, None),
-            (PreferredResponseType::Json, None),
-            (PreferredResponseType::Text, None),
-        ];
+        let mut format_preference: [(Self, Option<f32>); 3] =
+            [(Self::Html, None), (Self::Json, None), (Self::Text, None)];
 
         // iterate over the specified formats
         for format in accept_header.split(',') {

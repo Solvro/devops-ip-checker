@@ -75,7 +75,7 @@ fn get_git_meta_from_env() -> Option<GitMetadata> {
 }
 
 fn get_direct_git_metadata() -> Result<GitMetadata, ErrorContext> {
-    let git_dir = Path::new(&env::var_os("GIT_DIR").unwrap_or(".git".into()))
+    let git_dir = Path::new(&env::var_os("GIT_DIR").unwrap_or_else(|| ".git".into()))
         .canonicalize()
         .context("Failed to canonicalize the path to the git dir")?;
     let mut head_file = read_file(git_dir.join("HEAD"))?;

@@ -25,6 +25,8 @@ webpki-roots = "1.0.7"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+option_if_let_else = "allow"
 todo = "warn"
 
 [profile.release]

@@ -26,7 +26,7 @@ struct MetaPayload {
 }
 
 impl MetaPayload {
-    fn new(server_name: Option<Arc<str>>) -> Self {
+    const fn new(server_name: Option<Arc<str>>) -> Self {
         Self {
             server_name,
             version: VERSION,

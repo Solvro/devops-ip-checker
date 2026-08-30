@@ -110,18 +110,16 @@ impl Default for ListenConfig {
     }
 }
 
-fn default_unix_mode() -> u32 {
+const fn default_unix_mode() -> u32 {
     0o666
 }
 
 impl FileConfig {
-    pub fn get() -> Result<FileConfig, ErrorContext> {
+    pub fn get() -> Result<Self, ErrorContext> {
         if let Some(config_text) = env::var_os("IP_CHECKER_CONFIG") {
             // config file in the envvar
             serde_json::from_slice(config_text.as_encoded_bytes())
-                .context(
-                    "Failed to parse the contents of IP_CHECKER_CONFIG envvar as FileConfig",
-                )
+                .context("Failed to parse the contents of IP_CHECKER_CONFIG envvar as FileConfig")
         } else if let Some(config_b64) = env::var_os("IP_CHECKER_CONFIG_B64") {
             // config file base64-encoded in the envvar
             let decoded = base64::engine::general_purpose::URL_SAFE
@@ -132,23 +130,23 @@ impl FileConfig {
                 .context("Failed to parse the base64-decoded contents of IP_CHECKER_CONFIG_B64 envvar as FileConfig")
         } else if let Some(config_path) = env::var_os("IP_CHECKER_CONFIG_FILE") {
             // path to config file in the envvar
-                serde_json::from_reader(File::open(&config_path).with_context(|| {
-                    format!(
-                        "Failed to open {} (IP_CHECKER_CONFIG_FILE) for reading",
-                        config_path.display()
-                    )
-                })?)
-                .with_context(|| {
-                    format!(
-                        "Failed to parse the contents of {} (IP_CHECKER_CONFIG_FILE) as FileConfig",
-                        config_path.display()
-                    )
-                })
+            serde_json::from_reader(File::open(&config_path).with_context(|| {
+                format!(
+                    "Failed to open {} (IP_CHECKER_CONFIG_FILE) for reading",
+                    config_path.display()
+                )
+            })?)
+            .with_context(|| {
+                format!(
+                    "Failed to parse the contents of {} (IP_CHECKER_CONFIG_FILE) as FileConfig",
+                    config_path.display()
+                )
+            })
         } else {
             warn!(
                 "Neither IP_CHECKER_CONFIG nor IP_CHECKER_CONFIG_FILE envvars were present - using default configuration"
             );
-            Ok(FileConfig::default())
+            Ok(Self::default())
         }
     }
 
@@ -211,9 +209,9 @@ impl<'de> Deserialize<'de> for DeserializableCidr {
 impl ServerNameSource {
     pub async fn resolve(self) -> Result<Option<Arc<str>>, ErrorContext> {
         match self {
-            ServerNameSource::None => Ok(None),
-            ServerNameSource::Static { name } => Ok(Some(name)),
-            ServerNameSource::TlsCertificate {
+            Self::None => Ok(None),
+            Self::Static { name } => Ok(Some(name)),
+            Self::TlsCertificate {
                 target,
                 hostname,
                 mappings,
