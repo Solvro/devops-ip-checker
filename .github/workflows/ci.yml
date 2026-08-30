@@ -144,6 +144,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install yq (and tomlq)
+        run: |
+          sudo apt update
+          sudo apt install -y yq
+
       - name: Create tag if needed
         id: main
         shell: bash
