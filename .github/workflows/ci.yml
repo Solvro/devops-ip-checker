@@ -140,6 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [cargo-tests, docker-build, bare-metal-build]
     if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -153,7 +155,7 @@ jobs:
         id: main
         shell: bash
         run: |
-          VERSION=`tomlq -r '.version' Cargo.toml`
+          VERSION=`tomlq -r '.package.version' Cargo.toml`
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           if [[ "$VERSION" == "0.0.0" ]];
           then
